@@ -9,10 +9,13 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from dotenv import load_dotenv
 
 from agents import function_tool
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
-import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 # ACI DEV
 from aci import ACI
@@ -20,9 +23,6 @@ from aci import ACI
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-os.environ["OPENAI_API_KEY"] = "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"
-os.environ["ACI_API_KEY"]    =  "5c844ec8ca5fa147b85a956c40935d32562302867faa97f31008ba1ccf5bee21"
 
 
 @function_tool
@@ -79,7 +79,7 @@ class RealtimeWebSocketManager:
                     }
                 }
             )
-        
+
         session_context = await runner.run()
         session = await session_context.__aenter__()
         self.active_sessions[session_id] = session

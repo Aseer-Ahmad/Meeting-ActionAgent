@@ -1,24 +1,32 @@
+import os
+import re
 import asyncio
 import base64
 import json
 import logging
 import struct
-from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import Any
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from agents import function_tool
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
 
+from aci import ACI
+from aci.auth import SecurityScheme
+
 # Load environment variables from .env file
 load_dotenv()
 
-# ACI DEV
-from aci import ACI
+# Get GitHub username from environment or use default
+GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME")
+# Get GitHub token from environment
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 
 
 logging.basicConfig(level=logging.INFO)
@@ -42,20 +50,161 @@ def add_CalenderEvent(event: str, date: str) -> str:
     return f"Event '{event}' has been added to your calendar for {date}."
 
 aci = ACI()
-github_star_repo_function = aci.functions.get_definition("GITHUB__STAR_REPOSITORY")
+
+# Link GitHub account to ACI
+if GITHUB_TOKEN:
+    try:
+        result = aci.linked_accounts.link(
+            app_name="GITHUB",                      # Name of the app to link to
+            linked_account_owner_id=GITHUB_USERNAME,  # ID to identify the owner of this linked account
+            security_scheme=SecurityScheme.API_KEY,   # Type of authentication
+            api_key=GITHUB_TOKEN                     # Required for API_KEY security scheme
+        )
+        logger.info(f"Successfully linked GitHub account for {GITHUB_USERNAME}")
+    except Exception as e:
+        logger.error(f"Failed to link GitHub account: {e}")
+else:
+    logger.warning("GITHUB_TOKEN not set. GitHub account linking skipped.")
+
+github_comment_pr_function = aci.functions.get_definition("GITHUB__CREATE_ISSUE_COMMENT")
+
+@function_tool
+def extract_github_info_from_speech(speech_text: str) -> dict:
+    """
+    Extract GitHub repository name, PR number, and comment from user speech.
+
+    Args:
+        speech_text: The transcribed speech text from the user
+
+    Returns:
+        A dictionary containing the extracted repository name, PR number, and comment if found,
+        or an error message if the information couldn't be extracted
+    """
+    logger.info("Agent successfully called extract_github_info_from_speech function")
+
+    repo_pattern = r'(?:repository|repo|in)\s+([a-zA-Z0-9_-]+)'
+    pr_pattern = r'(?:PR|pull request|issue)\s+#?(\d+)'
+    comment_pattern = r'(?:comment|saying|with message)(?:\s+(?:saying|that))?\s+"([^"]+)"|(?:comment|saying|with message)(?:\s+(?:saying|that))?\s+\'([^\']+)\'|(?:comment|saying|with message)\s+(.+?)(?:\s+(?:to|on|in|for)\s+|\s*$)'
+
+    repo_match = re.search(repo_pattern, speech_text, re.IGNORECASE)
+    pr_match = re.search(pr_pattern, speech_text, re.IGNORECASE)
+    comment_match = re.search(comment_pattern, speech_text, re.IGNORECASE)
+
+    if not repo_match or not pr_match:
+        return {
+            "success": False,
+            "error": "Could not extract GitHub repository name and PR number from speech. Please specify both repository name (e.g., 'repo-name') and PR number (e.g., 'PR 123')."
+        }
+
+    repo_name = repo_match.group(1)
+    pr_number = pr_match.group(1)
+
+    # Extract comment - check which group matched
+    comment = ""
+    if comment_match:
+        if comment_match.group(1):
+            comment = comment_match.group(1)
+        elif comment_match.group(2):
+            comment = comment_match.group(2)
+        elif comment_match.group(3):
+            comment = comment_match.group(3)
+
+    if not comment:
+        return {
+            "success": False,
+            "error": "Could not extract comment from speech. Please specify a comment after mentioning the repository and PR number."
+        }
+
+    logger.info("Agent successfully completed extraction in extract_github_info_from_speech function")
+
+    return {
+        "success": True,
+        "repo": repo_name,
+        "pr_number": pr_number,
+        "comment": comment
+    }
 
 
-haiku_agent = RealtimeAgent(
-    name="Haiku Agent",
-    instructions="You are a haiku poet. You must respond ONLY in traditional haiku format (5-7-5 syllables). Every response should be a proper haiku about the topic. Do not break character.",
-    tools=[],
-)
+@function_tool
+def comment_on_github_pr(repo_name: str, pr_number: str, comment: str) -> str:
+    """
+    Add a comment to a GitHub Pull Request using the repository name and PR number.
+    Uses the configured GitHub username from environment variables.
+    This function can be called directly with parameters without speech extraction.
+
+    Args:
+        repo_name: The name of the GitHub repository
+        pr_number: The PR number to comment on
+        comment: The comment text to add to the PR
+
+    Returns:
+        A confirmation message indicating the comment was added successfully
+    """
+    # Call the ACI function to add a comment to the PR
+    logger.info("Agent successfully called comment_on_github_pr function")
+
+    result = github_comment_pr_function.execute(
+        owner=GITHUB_USERNAME,
+        repo=repo_name,
+        issue_number=pr_number,
+        body=comment
+    )
+
+    pr_url = f"https://github.com/{GITHUB_USERNAME}/{repo_name}/pull/{pr_number}"
+    return f"Comment added to PR {pr_url}: {comment}"
+
+@function_tool
+def comment_on_github_pr_from_speech(repo_name: str, pr_number: str, comment: str) -> str:
+    """
+    Add a comment to a GitHub Pull Request using the repository name and PR number.
+    This is a wrapper around comment_on_github_pr for use with speech extraction.
+
+    Args:
+        repo_name: The name of the GitHub repository
+        pr_number: The PR number to comment on
+        comment: The comment text to add to the PR
+
+    Returns:
+        A confirmation message indicating the comment was added successfully
+    """
+
+    logger.info("Agent successfully called comment_on_github_pr_from_speech function")
+
+    return comment_on_github_pr(repo_name, pr_number, comment)
+
+
 
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. Just transcribe the audio.",
-    tools=[get_weather, get_secret_number, add_CalenderEvent],
-    # handoffs=[haiku_agent],
+    instructions="""You are an assistant that only understands and responds in English. You can help users with various tasks.
+
+        You have the ability to add comments to GitHub Pull Requests when users ask you to do so through speech. 
+        
+        OPTION 1 - SPEECH EXTRACTION:
+        When a user mentions a GitHub repository name, PR number, and a comment in their speech, you should:
+        1. Extract the repository name (just the repo name, not owner/repo), PR number, and the comment text from their speech using the extract_github_info_from_speech tool
+        2. If the extraction is successful, use the comment_on_github_pr_from_speech tool to add the comment to the PR
+        
+        OPTION 2 - DIRECT PARAMETER PASSING:
+        If you already know the repository name, PR number, and comment (for example, if the user has provided them clearly or you've confirmed them), you can directly use the comment_on_github_pr tool without speech extraction.
+        
+        The GitHub username is configured in the system, so users only need to specify the repository name, not the owner/username.
+        
+        Example user requests:
+        - "Add a comment to the repository repo-name PR 123 saying 'This looks good to me'"
+        - "Comment on pull request 456 in the repo-name repository with 'Please fix the tests'"
+        - "Update PR 789 in repo-name with a comment 'Approved with some minor suggestions'"
+        
+        You should be able to understand and process these requests from speech input.
+    """,
+    tools=[
+        get_weather, 
+        get_secret_number, 
+        add_CalenderEvent, 
+        extract_github_info_from_speech, 
+        comment_on_github_pr_from_speech,
+        comment_on_github_pr
+    ],
 )
 
 

@@ -310,20 +310,24 @@
         const processor = audioContext.createScriptProcessor(4096, 1, 1);
 
         processor.onaudioprocess = (event) => {
-          const input = event.inputBuffer.getChannelData(0);
-          const int16Buffer = convertFloat32ToInt16(input);
-
-          if (websocket?.readyState === WebSocket.OPEN) {
-            websocket.send(int16Buffer);
-          }
+            const input = event.inputBuffer.getChannelData(0);
+            const int16Buffer = Array.from(convertFloat32ToInt16(input));
+            if (websocket?.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({
+                type: "audio",
+                data: int16Buffer
+                }));
+            }
         };
 
         source.connect(processor);
         processor.connect(audioContext.destination);
 
         // Connect WebSocket
-        const sessionId = "your-session-id"; // dynamically set as needed
+        const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
         websocket = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
+        // const sessionId = "your-session-id"; // dynamically set as needed
+        // websocket = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
         websocket.onopen = () => console.log("WebSocket connected");
 
       } catch (err) {
@@ -332,12 +336,12 @@
     }
 
     function convertFloat32ToInt16(buffer) {
-      const l = buffer.length;
-      const result = new Int16Array(l);
-      for (let i = 0; i < l; i++) {
-        result[i] = Math.max(-1, Math.min(1, buffer[i])) * 0x7FFF;
-      }
-      return result.buffer;
+        const l = buffer.length;
+        const result = new Int16Array(l);
+        for (let i = 0; i < l; i++) {
+            result[i] = Math.max(-1, Math.min(1, buffer[i])) * 0x7FFF;
+        }
+        return result;
     }
    </script>
 

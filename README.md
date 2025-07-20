@@ -14,7 +14,7 @@ This project aims to provide an intelligent agent capable of actively participat
 
 Before you begin, ensure you have the following installed:
 
-*   **Python 3.7+**
+*   **Python 3.10+**
 *   **Node.js and npm (Node Package Manager)** (for the web app)
 *   **uv (Ultraviolet package manager)**  - used for managing python packages
 

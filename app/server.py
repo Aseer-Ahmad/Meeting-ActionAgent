@@ -13,11 +13,8 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from aci import ACI
-from aci.types.enums import FunctionDefinitionFormat
-
-from agents import function_tool, FunctionTool, RunContextWrapper
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
+from tools import get_weather, get_secret_number, add_calender_event, get_tool
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,56 +24,34 @@ GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-aci = ACI()
-
-def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
-    function_definition = aci.functions.get_definition(function_name)
-    name = function_definition["function"]["name"]
-    description = function_definition["function"]["description"]
-    parameters = function_definition["function"]["parameters"]
-
-    async def tool_impl(
-        ctx: RunContextWrapper[Any], args: str
-    ) -> str:
-        return aci.handle_function_call(
-            function_name,
-            json.loads(args),
-            linked_account_owner_id=linked_account_owner_id,
-            allowed_apps_only=True,
-            format=FunctionDefinitionFormat.OPENAI,
-        )
-
-    return FunctionTool(
-        name=name,
-        description=description,
-        params_json_schema=parameters,
-        on_invoke_tool=tool_impl,
-        strict_json_schema=True,
-    )
-
-@function_tool
-def get_weather(city: str) -> str:
-    """Get the weather in a city."""
-    return f"The weather in {city} is sunny."
-
-
-@function_tool
-def get_secret_number() -> int:
-    """Returns the secret number, if the user asks for it."""
-    return 71
-
-@function_tool
-def add_CalenderEvent(event: str, date: str) -> str:
-    """Adds a calendar event."""
-    return f"Event '{event}' has been added to your calendar for {date}."
-
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. You can help users with various tasks. You should be able to understand and process these requests from speech input.",
+    instructions="""You are an assistant that only understands and responds in English. You operate in two modes:
+
+    1. Silent Observer Mode (default): In this mode, you should NOT respond to any input.
+
+    2. Active Response Mode: You ONLY enter this mode when you hear the exact trigger phrase "Hey Agent" followed by a task or question.
+
+    Rules:
+    - You must ONLY respond when someone says "Hey Agent" followed by a task or question.
+    - If the input does not begin with "Hey Agent", remain completely silent and do not respond at all.
+    - After you complete a task or answer a question, immediately return to Silent Observer Mode.
+    - While in Silent Observer Mode, you should not acknowledge or respond to any input unless it begins with "Hey Agent".
+    - You should be able to understand and process requests from speech input.
+
+    Example:
+    User: "What's the weather today?"
+    You: [No response - remain silent as trigger phrase wasn't used]
+
+    User: "Hey Agent, what's the weather today?"
+    You: [Provide weather information]
+
+    User: "Thanks!"
+    You: [No response - return to silent mode]""",
     tools=[
         get_weather,
         get_secret_number,
-        add_CalenderEvent,
+        add_calender_event,
         get_tool("GITHUB__CREATE_ISSUE_COMMENT", LINKED_ACCOUNT_OWNER_ID)
     ]
 )

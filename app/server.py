@@ -7,6 +7,7 @@ import struct
 
 from typing import Any
 from dotenv import load_dotenv
+from collections import Counter
 from contextlib import asynccontextmanager
 
 from fastapi.responses import FileResponse
@@ -18,11 +19,42 @@ from tools import get_tool
 
 # Load environment variables from .env file
 load_dotenv()
-LINKED_ACCOUNT_OWNER_ID = os.environ.get("LINKED_ACCOUNT_OWNER_ID")
-GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+github_agent = RealtimeAgent(
+    name="Github Assistant",
+    instructions="You are a Github assistant that only understands and responds in English for GitHub issues. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+           get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
+           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
+           get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+           get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),  ],
+)
+
+brave_agent = RealtimeAgent(
+    name="Brave Assistant",
+    instructions="You are a Brave Web assistant that only understands and responds in English for GitHub issues. Help wih Brave Browser related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("BRAVE_SEARCH__WEB_SEARCH", "brave persona")],
+)
+
+slack_agent = RealtimeAgent(
+    name="Slack Assistant",
+    instructions="You are a Slack assistant that only understands and responds in English for Slack issues. Help with Slack related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("SLACK__USERS_LIST", "slack_persona"),
+           get_tool("SLACK__CHAT_POST_MESSAGE", "slack_persona") ],
+)
+
+google_cal_agent = RealtimeAgent(
+    name="Google Calendar Assistant",
+    instructions="You are a Google Calendar assistant that only understands and responds in English for Google Calendar issues. Help with Google Calendar related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("GOOGLE_CALENDAR__EVENTS_INSERT", "google persona"),
+           get_tool("GOOGLE_CALENDAR__EVENTS_LIST", "google persona") ],
+)
+
 
 agent = RealtimeAgent(
     name="Assistant",
@@ -59,12 +91,7 @@ agent = RealtimeAgent(
     
     User: "Thanks! Guys no lets discuss this other topic, maybe we can add another comment here, what do you think"
     You: [No response - return to silent mode]""",
-    tools=[
-        get_weather,
-        get_secret_number,
-        add_calender_event,
-        get_tool("GITHUB__CREATE_ISSUE_COMMENT", LINKED_ACCOUNT_OWNER_ID)
-    ]
+    handoffs=[github_agent, slack_agent, brave_agent, google_cal_agent]
 )
 
 class RealtimeWebSocketManager:
@@ -89,6 +116,7 @@ class RealtimeWebSocketManager:
             )
 
         session_context = await runner.run()
+        # print(f"Session context created for session {session_context}")
         session = await session_context.__aenter__()
         self.active_sessions[session_id] = session
         self.session_contexts[session_id] = session_context
@@ -149,7 +177,6 @@ class RealtimeWebSocketManager:
             base_event["tool"] = event.tool.name
         elif event.type == "tool_end":
             base_event["tool"] = event.tool.name
-            base_event["output"] = str(event.output)
         elif event.type == "audio":
             base_event["audio"] = base64.b64encode(event.audio.data).decode("utf-8")
         elif event.type == "audio_interrupted":
@@ -186,6 +213,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+def checkAudioData(data):
+    if Counter(data)[0]/ len(data) > 0.8:
+        return False
+    return True
+
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -195,8 +227,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             data = await websocket.receive_text()
             message = json.loads(data)
             # print(f"Received message: {message}")
-
-            if message["type"] == "audio":
+            if message["type"] == "audio" and checkAudioData(message["data"]):
                 # Convert int16 array to bytes
                 int16_data = message["data"]
                 audio_bytes = struct.pack(f"{len(int16_data)}h", *int16_data)

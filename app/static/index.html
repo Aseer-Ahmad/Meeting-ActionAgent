@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Agent for meeting</title>
+    <title>Action Assistant for meeting</title>
     <style>
         * {
             margin: 0;
@@ -251,9 +251,9 @@
 </head>
 <body>
     <div class="header">
-        <h1>Voice Agent for meeting</h1>
+        <h1>Action Assistant for meeting</h1>
         <button id="connectBtn" class="connect-btn disconnected">Connect</button>
-        <button id="captureBtn" class="connect-btn disconnected" onclick="startCapture()">Start Streaming</button>
+        <!-- <button id="captureBtn" class="connect-btn disconnected" onclick="toggleStreaming()">Start Streaming</button> -->
     </div>
 
     <div class="main">
@@ -291,48 +291,83 @@
         </div>
     </div>
 
-    <script>
+
+    <!-- <script>
     let websocket;
+    let audioContext;
+    let processor;
+    let source;
+    let stream;
+    let isStreaming = false;
 
-    async function startCapture() {
-      try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            sampleRate: 44100,
-          }
-        });
+    async function toggleStreaming() {
+        const btn = document.getElementById('captureBtn');
+        if (!isStreaming) {
+            // Start streaming
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        sampleRate: 44100,
+                    }
+                });
 
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaStreamSource(stream);
-        const processor = audioContext.createScriptProcessor(4096, 1, 1);
+                audioContext = new AudioContext({ sampleRate: 44100 });
+                source = audioContext.createMediaStreamSource(stream);
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                source.connect(processor);
+                processor.connect(audioContext.destination);
 
-        processor.onaudioprocess = (event) => {
-            const input = event.inputBuffer.getChannelData(0);
-            const int16Buffer = Array.from(convertFloat32ToInt16(input));
-            if (websocket?.readyState === WebSocket.OPEN) {
-                websocket.send(JSON.stringify({
-                type: "audio",
-                data: int16Buffer
-                }));
+                processor.onaudioprocess = (event) => {
+                    const input = event.inputBuffer.getChannelData(0);
+                    const int16Buffer = Array.from(convertFloat32ToInt16(input));
+                    if (websocket?.readyState === WebSocket.OPEN) {
+                        websocket.send(JSON.stringify({
+                            type: "audio",
+                            data: int16Buffer
+                        }));
+                    }
+                };
+
+
+                // Connect WebSocket
+                const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+                websocket = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
+                websocket.onopen = () => console.log("WebSocket connected");
+
+                isStreaming = true;
+                btn.textContent = "Stop Streaming";
+                btn.classList.remove("disconnected");
+                btn.classList.add("connected");
+            } catch (err) {
+                console.error("Error capturing audio:", err);
             }
-        };
-
-        source.connect(processor);
-        processor.connect(audioContext.destination);
-
-        // Connect WebSocket
-        const sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
-        websocket = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
-        // const sessionId = "your-session-id"; // dynamically set as needed
-        // websocket = new WebSocket(`ws://localhost:8000/ws/${sessionId}`);
-        websocket.onopen = () => console.log("WebSocket connected");
-
-      } catch (err) {
-        console.error("Error capturing audio:", err);
-      }
+        } else {
+            // Stop streaming
+            if (processor) {
+                processor.disconnect();
+                processor.onaudioprocess = null;
+            }
+            if (source) {
+                source.disconnect();
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            if (stream) {
+                // Stop all tracks
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.close();
+            }
+            isStreaming = false;
+            btn.textContent = "Start Streaming";
+            btn.classList.remove("connected");
+            btn.classList.add("disconnected");
+        }
     }
 
     function convertFloat32ToInt16(buffer) {
@@ -343,7 +378,7 @@
         }
         return result;
     }
-   </script>
+    </script> -->
 
     <script src="app.js"></script>
 </body>

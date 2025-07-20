@@ -12,7 +12,15 @@ from fastapi.staticfiles import StaticFiles
 
 from agents import function_tool
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
+from agents import Agent, FunctionTool, RunContextWrapper, Runner
+from aci.types.enums import FunctionDefinitionFormat
+
 import os
+
+from collections import Counter
+
+from dotenv import load_dotenv
+load_dotenv()
 
 # ACI DEV
 from aci import ACI
@@ -21,9 +29,33 @@ from aci import ACI
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-os.environ["OPENAI_API_KEY"] = "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"
-os.environ["ACI_API_KEY"]    =  "5c844ec8ca5fa147b85a956c40935d32562302867faa97f31008ba1ccf5bee21"
+aci = ACI()
 
+
+def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
+    function_definition = aci.functions.get_definition(function_name)
+    name = function_definition["function"]["name"]
+    description = function_definition["function"]["description"]
+    parameters = function_definition["function"]["parameters"]
+
+    async def tool_impl(
+        ctx: RunContextWrapper[Any], args: str
+    ) -> str:
+        return aci.handle_function_call(
+            function_name,
+            json.loads(args),
+            linked_account_owner_id=linked_account_owner_id,
+            allowed_apps_only=True,
+            format=FunctionDefinitionFormat.OPENAI,
+        )
+
+    return FunctionTool(
+        name=name,
+        description=description,
+        params_json_schema=parameters,
+        on_invoke_tool=tool_impl,
+        strict_json_schema=True,
+    )
 
 @function_tool
 def get_weather(city: str) -> str:
@@ -41,9 +73,6 @@ def add_CalenderEvent(event: str, date: str) -> str:
     """Adds a calendar event."""
     return f"Event '{event}' has been added to your calendar for {date}."
 
-aci = ACI()
-github_star_repo_function = aci.functions.get_definition("GITHUB__STAR_REPOSITORY")
-
 
 haiku_agent = RealtimeAgent(
     name="Haiku Agent",
@@ -53,9 +82,8 @@ haiku_agent = RealtimeAgent(
 
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. Just transcribe the audio.",
-    tools=[get_weather, get_secret_number, add_CalenderEvent],
-    # handoffs=[haiku_agent],
+    instructions="You are an assistant that only understands and responds in English. You can use tools to answer questions. If you don't know the answer, say 'I don't know'.",
+    tools=[get_weather, get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
 )
 
 
@@ -81,6 +109,7 @@ class RealtimeWebSocketManager:
             )
         
         session_context = await runner.run()
+        # print(f"Session context created for session {session_context}")
         session = await session_context.__aenter__()
         self.active_sessions[session_id] = session
         self.session_contexts[session_id] = session_context
@@ -128,7 +157,6 @@ class RealtimeWebSocketManager:
             base_event["tool"] = event.tool.name
         elif event.type == "tool_end":
             base_event["tool"] = event.tool.name
-            base_event["output"] = str(event.output)
         elif event.type == "audio":
             base_event["audio"] = base64.b64encode(event.audio.data).decode("utf-8")
         elif event.type == "audio_interrupted":
@@ -165,6 +193,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
+def checkAudioData(data):
+    if Counter(data)[0]/ len(data) > 0.8:
+        return False
+    return True
+
 
 @app.websocket("/ws/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -174,8 +207,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             data = await websocket.receive_text()
             message = json.loads(data)
             # print(f"Received message: {message}")
-
-            if message["type"] == "audio":
+            if message["type"] == "audio" and checkAudioData(message["data"]):
                 # Convert int16 array to bytes
                 int16_data = message["data"]
                 audio_bytes = struct.pack(f"{len(int16_data)}h", *int16_data)

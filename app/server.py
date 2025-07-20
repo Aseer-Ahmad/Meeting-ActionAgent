@@ -77,7 +77,7 @@ brave_agent = RealtimeAgent(
 
 slack_agent = RealtimeAgent(
     name="Slack Assistant",
-    instructions="You are a Slack assistant that only understands and responds in English for GitHub issues. Help with Slack related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    instructions="You are a Slack assistant that only understands and responds in English for Slack issues. Help with Slack related queries. Do not respond to any other language. Do not trascribe and traslate.",
     tools=[get_tool("SLACK__USERS_LIST", "slack_persona"),
            get_tool("SLACK__CHAT_POST_MESSAGE", "slack_persona") ],
 )
@@ -88,10 +88,10 @@ agent = RealtimeAgent(
     name="Assistant",
     instructions="You are an assistant that only understands and responds in English. Do not respond in any other language" \
                  "You can use tools to answer questions. If you don't know the answer, say 'I don't know'.",
-    tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
-           get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
-           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
-    handoffs=[github_agent],
+    # tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
+    #        get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
+    #        get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
+    handoffs=[github_agent, slack_agent, brave_agent],
 )
 
 

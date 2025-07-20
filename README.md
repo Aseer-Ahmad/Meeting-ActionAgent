@@ -37,7 +37,7 @@ Before you begin, ensure you have the following installed:
     source .venv/bin/activate  # On Linux/macOS
     # .venv\Scripts\activate  # On Windows
 
-    uv add fastapi uvicorn websockets aci-sdk openai-agents
+    uv pip install -r requirements.txt
     ```
 
 4.  **Run the application server:**

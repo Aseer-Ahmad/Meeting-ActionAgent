@@ -63,9 +63,12 @@ def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
 github_agent = RealtimeAgent(
     name="Github Assistant",
     instructions="You are a Github assistant that only understands and responds in English for GitHub issues. Do not respond to any other language. Do not trascribe and traslate.",
-    tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
+    tools=[get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
            get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
-           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
+           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
+            get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+            get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
+            get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),  ],
 )
 
 brave_agent = RealtimeAgent(
@@ -83,6 +86,13 @@ slack_agent = RealtimeAgent(
 )
 
 
+google_cal_agent = RealtimeAgent(
+    name="Google Calendar Assistant",
+    instructions="You are a Google Calendar assistant that only understands and responds in English for Google Calendar issues. Help with Google Calendar related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("GOOGLE_CALENDAR__EVENTS_INSERT", "google persona"),
+           get_tool("GOOGLE_CALENDAR__EVENTS_LIST", "google persona") ],
+)
+
 
 agent = RealtimeAgent(
     name="Assistant",
@@ -91,7 +101,7 @@ agent = RealtimeAgent(
     # tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
     #        get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
     #        get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
-    handoffs=[github_agent, slack_agent, brave_agent],
+    handoffs=[github_agent, slack_agent, brave_agent, google_cal_agent],
 )
 
 

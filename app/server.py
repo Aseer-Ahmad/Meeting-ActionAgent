@@ -1,61 +1,27 @@
+import os
 import asyncio
 import base64
 import json
 import logging
 import struct
-from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import Any
+from dotenv import load_dotenv
+from collections import Counter
+from contextlib import asynccontextmanager
+
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from agents import function_tool
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
-from agents import Agent, FunctionTool, RunContextWrapper, Runner
-from aci.types.enums import FunctionDefinitionFormat
+from tools import get_tool
 
-import os
-
-from collections import Counter
-
-from dotenv import load_dotenv
+# Load environment variables from .env file
 load_dotenv()
-
-# ACI DEV
-from aci import ACI
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-aci = ACI()
-
-# required to cast tool to FunctionTool 
-def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
-    function_definition = aci.functions.get_definition(function_name)
-    name = function_definition["function"]["name"]
-    description = function_definition["function"]["description"]
-    parameters = function_definition["function"]["parameters"]
-
-    async def tool_impl(
-        ctx: RunContextWrapper[Any], args: str
-    ) -> str:
-        return aci.handle_function_call(
-            function_name,
-            json.loads(args),
-            linked_account_owner_id=linked_account_owner_id,
-            allowed_apps_only=True,
-            format=FunctionDefinitionFormat.OPENAI,
-        )
-
-    return FunctionTool(
-        name=name,
-        description=description,
-        params_json_schema=parameters,
-        on_invoke_tool=tool_impl,
-        strict_json_schema=True,
-    )
 
 
 github_agent = RealtimeAgent(
@@ -92,14 +58,41 @@ google_cal_agent = RealtimeAgent(
 
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. Do not respond in any other language" \
-                 "You can use tools to answer questions. If you don't know the answer, say 'I don't know'.",
-    # tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
-    #        get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
-    #        get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
-    handoffs=[github_agent, slack_agent, brave_agent, google_cal_agent],
-)
+    instructions="""You are a meeting assistant that only responds in English. You operate in two modes:
 
+    1. Silent Observer Mode (default): In this mode, you should NOT respond to any input but just remember the context of meeting. Just respond with '' as output.
+
+    2. Active Response Mode: You ONLY enter this mode when you hear the exact trigger phrase "Hey Agent" followed by a task or question.
+
+    Rules:
+    - You must ONLY respond when someone says "Hey Agent" followed by a task or question.
+    - If the input does not begin with "Hey Agent", remain completely silent and do not respond at all.
+    - If there is confusion in task or you need more info, ask for it.
+    - After you complete a task or answer a question, just mention briefly that task is successful and immediately return to Silent Observer Mode without saying anything else.
+    - Do not continue speaking if the given task is done unless you are asked again for a task started by "Hey Agent" wake word.
+    - While in Silent Observer Mode, you should not acknowledge or respond to any input unless it begins with "Hey Agent".
+    - You should be able to understand and process requests from speech input.
+
+    Example:
+    User: "What's the weather today?"
+    You: [No response - remain silent as trigger phrase wasn't used]
+
+    User: "Hey Agent, what's the weather today?"
+    You: [Provide weather information]
+    
+    User: "Lets add a comment to Github Repo for later"
+    You: [No response - remain silent as trigger phrase wasn't used]
+
+    User: "Hey Agent, Can you add a comment to Github Repo for me?"
+    You: [Ask for Repo name, PR number and information to comment]
+
+    User: "Repo 'My Repo' PR # 1, add comment 'this task needs to be review by all of us'"
+    You: [tool call for comment on Repo and respond with sucess]
+    
+    User: "Thanks! Guys no lets discuss this other topic, maybe we can add another comment here, what do you think"
+    You: [No response - return to silent mode]""",
+    handoffs=[github_agent, slack_agent, brave_agent, google_cal_agent]
+)
 
 class RealtimeWebSocketManager:
     def __init__(self):
@@ -121,7 +114,7 @@ class RealtimeWebSocketManager:
                     }
                 }
             )
-        
+
         session_context = await runner.run()
         # print(f"Session context created for session {session_context}")
         session = await session_context.__aenter__()
@@ -153,7 +146,20 @@ class RealtimeWebSocketManager:
                 event_data = await self._serialize_event(event)
                 await websocket.send_text(json.dumps(event_data))
         except Exception as e:
-            logger.error(f"Error processing events for session {session_id}: {e}")
+            error_message = str(e)
+            logger.error(f"Error processing events for session {session_id}: {error_message}")
+
+            # If this is a linked account error, send a more helpful message to the client
+            if "Linked account not found" in error_message and session_id in self.websockets:
+                try:
+                    app_name = error_message.split("app=")[1].split(",")[0] if "app=" in error_message else "unknown"
+                    error_data = {
+                        "type": "error",
+                        "error": f"Account linking required for {app_name}. Please link your account at https://platform.aci.dev/appconfigs/{app_name}"
+                    }
+                    await self.websockets[session_id].send_text(json.dumps(error_data))
+                except Exception as send_error:
+                    logger.error(f"Failed to send error message to client: {send_error}")
 
     async def _serialize_event(self, event: RealtimeSessionEvent) -> dict[str, Any]:
         base_event: dict[str, Any] = {

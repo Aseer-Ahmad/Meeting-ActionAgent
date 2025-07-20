@@ -1,10 +1,16 @@
-from agents import Agent, FunctionTool, RunContextWrapper, Runner
-from aci.types.enums import FunctionDefinitionFormat
-import aci
-from typing import Any
 import json
+from typing import Any
+from dotenv import load_dotenv
 
-# required to cast tool to FunctionTool 
+from aci import ACI
+from aci.types.enums import FunctionDefinitionFormat
+
+from agents import function_tool, FunctionTool, RunContextWrapper
+
+load_dotenv()
+aci = ACI()
+
+
 def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
     function_definition = aci.functions.get_definition(function_name)
     name = function_definition["function"]["name"]
@@ -29,5 +35,3 @@ def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
         on_invoke_tool=tool_impl,
         strict_json_schema=True,
     )
-
-

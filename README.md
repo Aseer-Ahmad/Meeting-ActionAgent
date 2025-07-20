@@ -85,11 +85,4 @@ Contributions are welcome! To contribute to this project, follow these steps:
 2.  Create a new branch for your feature or bug fix.
 3.  Implement your changes and write appropriate tests.
 4.  Submit a pull request with a clear description of your changes.
-
-## License Information
-
-License information is not explicitly specified in the provided repository information.  It is assumed to be proprietary or under development. Adding a License (e.g., MIT, Apache 2.0) is highly recommended.
-
-## Acknowledgments (if relevant)
-
-If the project utilizes any third-party libraries, datasets, or resources, please acknowledge them here.
+r

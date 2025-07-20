@@ -175,69 +175,69 @@ class RealtimeDemo {
         
         try {
 
-            // this.stream = await navigator.mediaDevices.getUserMedia({ 
-            //     audio: {
-            //         sampleRate: 24000,
-            //         channelCount: 1,
-            //         echoCancellation: true,
-            //         noiseSuppression: true
-            //     } 
-            // });
-
-            // this.audioContext = new AudioContext({ sampleRate: 24000 });
-            // const source = this.audioContext.createMediaStreamSource(this.stream);
-            
-            // // Create a script processor to capture audio data
-            // this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
-            // source.connect(this.processor);
-            // this.processor.connect(this.audioContext.destination);
-            
-            // this.processor.onaudioprocess = (event) => {
-            //     if (!this.isMuted && this.ws && this.ws.readyState === WebSocket.OPEN) {
-            //         const inputBuffer = event.inputBuffer.getChannelData(0);
-            //         const int16Buffer = new Int16Array(inputBuffer.length);
-            //         for (let i = 0; i < inputBuffer.length; i++) {
-            //             int16Buffer[i] = Math.max(-32768, Math.min(32767, inputBuffer[i] * 32768));
-            //         }
-                    
-            //         this.ws.send(JSON.stringify({
-            //             type: 'audio',
-            //             data: Array.from(int16Buffer)
-            //         }));
-            //     }
-            // };
-
-            this.stream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
+            this.stream = await navigator.mediaDevices.getUserMedia({ 
                 audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
                     sampleRate: 24000,
-                }
+                    channelCount: 1,
+                    echoCancellation: true,
+                    noiseSuppression: true
+                } 
             });
 
             this.audioContext = new AudioContext({ sampleRate: 24000 });
             const source = this.audioContext.createMediaStreamSource(this.stream);
+            
+            // Create a script processor to capture audio data
             this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
             source.connect(this.processor);
             this.processor.connect(this.audioContext.destination);
-
+            
             this.processor.onaudioprocess = (event) => {
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    const input = event.inputBuffer.getChannelData(0);
-                    const int16Buffer = new Int16Array(input.length);
-                    for (let i = 0; i < input.length; i++) {
-                        int16Buffer[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+                if (!this.isMuted && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const inputBuffer = event.inputBuffer.getChannelData(0);
+                    const int16Buffer = new Int16Array(inputBuffer.length);
+                    for (let i = 0; i < inputBuffer.length; i++) {
+                        int16Buffer[i] = Math.max(-32768, Math.min(32767, inputBuffer[i] * 32768));
                     }
-
+                    
                     this.ws.send(JSON.stringify({
-                        type: "audio",
+                        type: 'audio',
                         data: Array.from(int16Buffer)
                     }));
-
                 }
-
             };
+
+            // this.stream = await navigator.mediaDevices.getDisplayMedia({
+            //     video: true,
+            //     audio: {
+            //         echoCancellation: false,
+            //         noiseSuppression: false,
+            //         sampleRate: 24000,
+            //     }
+            // });
+
+            // this.audioContext = new AudioContext({ sampleRate: 24000 });
+            // const source = this.audioContext.createMediaStreamSource(this.stream);
+            // this.processor = this.audioContext.createScriptProcessor(4096, 1, 1);
+            // source.connect(this.processor);
+            // this.processor.connect(this.audioContext.destination);
+
+            // this.processor.onaudioprocess = (event) => {
+            //     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            //         const input = event.inputBuffer.getChannelData(0);
+            //         const int16Buffer = new Int16Array(input.length);
+            //         for (let i = 0; i < input.length; i++) {
+            //             int16Buffer[i] = Math.max(-32768, Math.min(32767, input[i] * 32768));
+            //         }
+
+            //         this.ws.send(JSON.stringify({
+            //             type: "audio",
+            //             data: Array.from(int16Buffer)
+            //         }));
+
+            //     }
+
+            // };
             
             this.isCapturing = true;
             

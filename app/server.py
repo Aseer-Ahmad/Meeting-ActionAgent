@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 aci = ACI()
 
-
+# required to cast tool to FunctionTool 
 def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
     function_definition = aci.functions.get_definition(function_name)
     name = function_definition["function"]["name"]
@@ -57,33 +57,41 @@ def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
         strict_json_schema=True,
     )
 
-@function_tool
-def get_weather(city: str) -> str:
-    """Get the weather in a city."""
-    return f"The weather in {city} is sunny."
 
 
-@function_tool
-def get_secret_number() -> int:
-    """Returns the secret number, if the user asks for it."""
-    return 71
 
-@function_tool
-def add_CalenderEvent(event: str, date: str) -> str:
-    """Adds a calendar event."""
-    return f"Event '{event}' has been added to your calendar for {date}."
-
-
-haiku_agent = RealtimeAgent(
-    name="Haiku Agent",
-    instructions="You are a haiku poet. You must respond ONLY in traditional haiku format (5-7-5 syllables). Every response should be a proper haiku about the topic. Do not break character.",
-    tools=[],
+github_agent = RealtimeAgent(
+    name="Github Assistant",
+    instructions="You are a Github assistant that only understands and responds in English for GitHub issues. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
+           get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
+           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
 )
+
+brave_agent = RealtimeAgent(
+    name="Brave Assistant",
+    instructions="You are a Brave Web assistant that only understands and responds in English for GitHub issues. Help wih Brave Browser related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("BRAVE_SEARCH__WEB_SEARCH", "brave persona")],
+)
+
+
+slack_agent = RealtimeAgent(
+    name="Slack Assistant",
+    instructions="You are a Slack assistant that only understands and responds in English for GitHub issues. Help with Slack related queries. Do not respond to any other language. Do not trascribe and traslate.",
+    tools=[get_tool("SLACK__USERS_LIST", "slack_persona"),
+           get_tool("SLACK__CHAT_POST_MESSAGE", "slack_persona") ],
+)
+
+
 
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. You can use tools to answer questions. If you don't know the answer, say 'I don't know'.",
-    tools=[get_weather, get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
+    instructions="You are an assistant that only understands and responds in English. Do not respond in any other language" \
+                 "You can use tools to answer questions. If you don't know the answer, say 'I don't know'.",
+    tools=[get_tool("GITHUB__GET_USER", "personaassis0"),
+           get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
+           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0") ],
+    handoffs=[github_agent],
 )
 
 

@@ -66,9 +66,9 @@ github_agent = RealtimeAgent(
     tools=[get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
            get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
            get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
-            get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
-            get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
-            get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),  ],
+           get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+           get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),  ],
 )
 
 brave_agent = RealtimeAgent(

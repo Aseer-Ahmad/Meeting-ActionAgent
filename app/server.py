@@ -58,9 +58,21 @@ google_cal_agent = RealtimeAgent(
 
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="Help",
+    instructions="You are a multi-purpose assistant that can help with GitHub, Slack, Brave Browser, and Google Calendar." \
+    " You can also handle audio input. Respond in English only. Do not transcribe or translate audio. The github username for my own account is 'personaassis0'.",
+    tools = [get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
+           get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
+           get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+           get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),
+            # get_tool("BRAVE_SEARCH__WEB_SEARCH", "brave persona"),
+           get_tool("SLACK__USERS_LIST", "slack_persona"),
+           get_tool("SLACK__CHAT_POST_MESSAGE", "slack_persona"),
+           get_tool("GOOGLE_CALENDAR__EVENTS_INSERT", "google persona"),
+           get_tool("GOOGLE_CALENDAR__EVENTS_LIST", "google persona")],
     handoffs=[github_agent, slack_agent, brave_agent, google_cal_agent]
-)
+    )
 
 class RealtimeWebSocketManager:
     def __init__(self):

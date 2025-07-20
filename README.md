@@ -39,6 +39,14 @@ Before you begin, ensure you have the following installed:
 
     uv pip install -r requirements.txt
     ```
+4.  **API keys:**
+
+    Set the following API keys in your .env file. 
+    ACI_API_KEY refers to Aci.dev (https://www.aci.dev/) for MCP and tool integration.
+
+    ```
+    OPENAI_API_KEY, ACI_API_KEY
+    ```
 
 4.  **Run the application server:**
 

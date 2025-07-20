@@ -34,19 +34,3 @@ def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
         on_invoke_tool=tool_impl,
         strict_json_schema=True,
     )
-
-@function_tool
-def get_weather(city: str) -> str:
-    """Get the weather in a city."""
-    return f"The weather in {city} is sunny."
-
-
-@function_tool
-def get_secret_number() -> int:
-    """Returns the secret number, if the user asks for it."""
-    return 71
-
-@function_tool
-def add_calender_event(event: str, date: str) -> str:
-    """Adds a calendar event."""
-    return f"Event '{event}' has been added to your calendar for {date}."

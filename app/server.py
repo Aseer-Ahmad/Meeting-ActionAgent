@@ -14,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
-from tools import get_weather, get_secret_number, add_calender_event, get_tool
+from tools import get_tool
 
 # Load environment variables from .env file
 load_dotenv()

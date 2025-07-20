@@ -58,8 +58,6 @@ def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
     )
 
 
-
-
 github_agent = RealtimeAgent(
     name="Github Assistant",
     instructions="You are a Github assistant that only understands and responds in English for GitHub issues. Do not respond to any other language. Do not trascribe and traslate.",
@@ -77,14 +75,12 @@ brave_agent = RealtimeAgent(
     tools=[get_tool("BRAVE_SEARCH__WEB_SEARCH", "brave persona")],
 )
 
-
 slack_agent = RealtimeAgent(
     name="Slack Assistant",
     instructions="You are a Slack assistant that only understands and responds in English for Slack issues. Help with Slack related queries. Do not respond to any other language. Do not trascribe and traslate.",
     tools=[get_tool("SLACK__USERS_LIST", "slack_persona"),
            get_tool("SLACK__CHAT_POST_MESSAGE", "slack_persona") ],
 )
-
 
 google_cal_agent = RealtimeAgent(
     name="Google Calendar Assistant",

@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 github_agent = RealtimeAgent(
     name="Github Assistant",
     instructions="You are a Github assistant that only understands and responds in English for GitHub issues. Do not respond to any other language. Do not trascribe and traslate.",
-    tools=[get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
+    tools=[get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
            get_tool("GITHUB__LIST_ISSUES", "personaassis0"),
-           get_tool("GITHUB__LIST_REPOSITORIES", "personaassis0"),
            get_tool("GITHUB__CREATE_ISSUE", "personaassis0"),
            get_tool("GITHUB__CREATE_ISSUE_COMMENT", "personaassis0"),
-           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),  ],
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0"),
+           get_tool("GITHUB__CREATE_PULL_REQUEST", "personaassis0")],
 )
 
 brave_agent = RealtimeAgent(

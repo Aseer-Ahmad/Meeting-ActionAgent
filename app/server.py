@@ -1,29 +1,58 @@
+import os
 import asyncio
 import base64
 import json
 import logging
 import struct
-from contextlib import asynccontextmanager
-from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from typing import Any
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from dotenv import load_dotenv
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from agents import function_tool
+from aci import ACI
+from aci.types.enums import FunctionDefinitionFormat
+
+from agents import function_tool, FunctionTool, RunContextWrapper
 from agents.realtime import RealtimeAgent, RealtimeRunner, RealtimeSession, RealtimeSessionEvent
 
 # Load environment variables from .env file
 load_dotenv()
-
-# ACI DEV
-from aci import ACI
-
+LINKED_ACCOUNT_OWNER_ID = os.environ.get("LINKED_ACCOUNT_OWNER_ID")
+GITHUB_USERNAME = os.environ.get("GITHUB_USERNAME")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+aci = ACI()
+
+def get_tool(function_name: str, linked_account_owner_id: str) -> FunctionTool:
+    function_definition = aci.functions.get_definition(function_name)
+    name = function_definition["function"]["name"]
+    description = function_definition["function"]["description"]
+    parameters = function_definition["function"]["parameters"]
+
+    async def tool_impl(
+        ctx: RunContextWrapper[Any], args: str
+    ) -> str:
+        return aci.handle_function_call(
+            function_name,
+            json.loads(args),
+            linked_account_owner_id=linked_account_owner_id,
+            allowed_apps_only=True,
+            format=FunctionDefinitionFormat.OPENAI,
+        )
+
+    return FunctionTool(
+        name=name,
+        description=description,
+        params_json_schema=parameters,
+        on_invoke_tool=tool_impl,
+        strict_json_schema=True,
+    )
 
 @function_tool
 def get_weather(city: str) -> str:
@@ -41,23 +70,16 @@ def add_CalenderEvent(event: str, date: str) -> str:
     """Adds a calendar event."""
     return f"Event '{event}' has been added to your calendar for {date}."
 
-aci = ACI()
-github_star_repo_function = aci.functions.get_definition("GITHUB__STAR_REPOSITORY")
-
-
-haiku_agent = RealtimeAgent(
-    name="Haiku Agent",
-    instructions="You are a haiku poet. You must respond ONLY in traditional haiku format (5-7-5 syllables). Every response should be a proper haiku about the topic. Do not break character.",
-    tools=[],
-)
-
 agent = RealtimeAgent(
     name="Assistant",
-    instructions="You are an assistant that only understands and responds in English. Just transcribe the audio.",
-    tools=[get_weather, get_secret_number, add_CalenderEvent],
-    # handoffs=[haiku_agent],
+    instructions="You are an assistant that only understands and responds in English. You can help users with various tasks. You should be able to understand and process these requests from speech input.",
+    tools=[
+        get_weather,
+        get_secret_number,
+        add_CalenderEvent,
+        get_tool("GITHUB__CREATE_ISSUE_COMMENT", LINKED_ACCOUNT_OWNER_ID)
+    ]
 )
-
 
 class RealtimeWebSocketManager:
     def __init__(self):
@@ -110,7 +132,20 @@ class RealtimeWebSocketManager:
                 event_data = await self._serialize_event(event)
                 await websocket.send_text(json.dumps(event_data))
         except Exception as e:
-            logger.error(f"Error processing events for session {session_id}: {e}")
+            error_message = str(e)
+            logger.error(f"Error processing events for session {session_id}: {error_message}")
+
+            # If this is a linked account error, send a more helpful message to the client
+            if "Linked account not found" in error_message and session_id in self.websockets:
+                try:
+                    app_name = error_message.split("app=")[1].split(",")[0] if "app=" in error_message else "unknown"
+                    error_data = {
+                        "type": "error",
+                        "error": f"Account linking required for {app_name}. Please link your account at https://platform.aci.dev/appconfigs/{app_name}"
+                    }
+                    await self.websockets[session_id].send_text(json.dumps(error_data))
+                except Exception as send_error:
+                    logger.error(f"Failed to send error message to client: {send_error}")
 
     async def _serialize_event(self, event: RealtimeSessionEvent) -> dict[str, Any]:
         base_event: dict[str, Any] = {

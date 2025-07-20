@@ -85,4 +85,3 @@ Contributions are welcome! To contribute to this project, follow these steps:
 2.  Create a new branch for your feature or bug fix.
 3.  Implement your changes and write appropriate tests.
 4.  Submit a pull request with a clear description of your changes.
-r
